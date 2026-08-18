@@ -1,8 +1,6 @@
 import streamlit as st
 import cv2
 import numpy as np
-from PIL import Image
-import io
 
 
 # ============================================================
@@ -98,6 +96,9 @@ if "processed" not in st.session_state:
 if "operation" not in st.session_state:
     st.session_state.operation = "No operation selected"
 
+if "file_id" not in st.session_state:
+    st.session_state.file_id = None
+
 
 # ============================================================
 # RESET FUNCTION
@@ -108,14 +109,16 @@ def reset_app():
     st.session_state.image = None
     st.session_state.processed = None
     st.session_state.operation = "No operation selected"
+    st.session_state.file_id = None
 
 
 # ============================================================
-# IMAGE PROCESSING FUNCTIONS
+# IMAGE PROCESSING FUNCTION
 # ============================================================
 
 def process_image(image, operation):
 
+    # Convert original BGR image to grayscale
     gray = cv2.cvtColor(
         image,
         cv2.COLOR_BGR2GRAY
@@ -321,36 +324,44 @@ if uploaded_file is not None:
 
     if uploaded_file.size > 50 * 1024 * 1024:
 
-        st.error(
-            "❌ File is larger than 50 MB."
-        )
+        st.error("❌ File is larger than 50 MB.")
 
     else:
 
-        file_bytes = np.asarray(
-            bytearray(
-                uploaded_file.getvalue()
-            ),
-            dtype=np.uint8
+        # Unique ID for uploaded image
+        file_id = (
+            uploaded_file.name,
+            uploaded_file.size
         )
 
-        image = cv2.imdecode(
-            file_bytes,
-            cv2.IMREAD_COLOR
-        )
+        # Process upload only when new image is selected
+        if st.session_state.file_id != file_id:
 
-        if image is not None:
-
-            # Store image
-            st.session_state.image = image
-
-            # Reset processing when a new image is uploaded
-            st.session_state.processed = None
-            st.session_state.operation = "No operation selected"
-
-            st.success(
-                "Image uploaded successfully! ✅"
+            file_bytes = np.asarray(
+                bytearray(
+                    uploaded_file.getvalue()
+                ),
+                dtype=np.uint8
             )
+
+            image = cv2.imdecode(
+                file_bytes,
+                cv2.IMREAD_COLOR
+            )
+
+            if image is not None:
+
+                st.session_state.image = image
+
+                # Reset previous processing
+                st.session_state.processed = None
+                st.session_state.operation = "No operation selected"
+
+                st.session_state.file_id = file_id
+
+                st.success(
+                    "Image uploaded successfully! ✅"
+                )
 
 
 # ============================================================
@@ -415,7 +426,7 @@ if st.session_state.image is not None:
         else:
 
             st.info(
-                "Choose an image processing technique below."
+                "Select a processing technique below."
             )
 
 
@@ -428,11 +439,7 @@ if st.session_state.image is not None:
     st.header("🔹 Spatial Domain Methods")
 
     st.write(
-        """
-        Spatial domain methods operate directly on image pixels.
-        They are commonly used for noise suppression and image
-        enhancement.
-        """
+        "These filters operate directly on image pixels."
     )
 
     col1, col2, col3 = st.columns(3)
@@ -500,13 +507,6 @@ if st.session_state.image is not None:
 
     st.header("📐 Gradient Operators")
 
-    st.write(
-        """
-        Gradient operators detect intensity changes and help
-        identify edges in an image.
-        """
-    )
-
     col1, col2, col3 = st.columns(3)
 
 
@@ -565,7 +565,7 @@ if st.session_state.image is not None:
 
 
     # ========================================================
-    # CANNY EDGE DETECTION
+    # CANNY
     # ========================================================
 
     st.divider()
@@ -589,7 +589,7 @@ if st.session_state.image is not None:
 
 
     # ========================================================
-    # BASIC PROCESSING
+    # GRAYSCALE
     # ========================================================
 
     st.divider()
@@ -701,8 +701,7 @@ if st.session_state.image is not None:
     else:
 
         st.info(
-            "Select Mean, Gaussian, Laplacian, Sobel or Prewitt "
-            "to display its operator matrix."
+            "Select a filter or operator to display its matrix."
         )
 
 
@@ -728,10 +727,6 @@ if st.session_state.image is not None:
     st.divider()
 
     st.header("🔢 Image Pixel Matrix")
-
-    st.write(
-        "Sample 10 × 10 grayscale pixel matrix:"
-    )
 
     gray = cv2.cvtColor(
         image,
