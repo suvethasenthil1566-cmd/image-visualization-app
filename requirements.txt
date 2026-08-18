@@ -1,4 +1,4 @@
-Flask
-opencv-python
+streamlit
+opencv-python-headless
 numpy
-gunicorn
+pillow

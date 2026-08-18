@@ -1,17 +1,38 @@
-from flask import Flask, request, render_template_string, redirect, url_for
+import streamlit as st
 import cv2
 import numpy as np
-import base64
+from PIL import Image
+import io
 
-app = Flask(__name__)
 
-# Maximum upload size = 50 MB
-app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
+# ============================================================
+# PAGE CONFIGURATION
+# ============================================================
 
-# Store current image in server memory
-current_image = None
-current_processed = None
-current_operation = "No operation selected"
+st.set_page_config(
+    page_title="IVA Image Preprocessing Dashboard",
+    page_icon="🖼️",
+    layout="wide"
+)
+
+
+# ============================================================
+# TITLE
+# ============================================================
+
+st.title("🖼️ Image Preprocessing Dashboard")
+
+st.markdown(
+    """
+    **IVA Assignment | Spatial Domain Methods | Gradient Operators**
+
+    This application demonstrates image preprocessing techniques
+    using OpenCV, including noise suppression, gradient operators,
+    and Canny edge detection.
+    """
+)
+
+st.divider()
 
 
 # ============================================================
@@ -65,695 +86,38 @@ KERNELS = {
 
 
 # ============================================================
-# HTML + CSS
+# SESSION STATE
 # ============================================================
 
-HTML = """
+if "image" not in st.session_state:
+    st.session_state.image = None
 
-<!DOCTYPE html>
+if "processed" not in st.session_state:
+    st.session_state.processed = None
 
-<html>
-
-<head>
-
-<title>IVA Image Preprocessing Dashboard</title>
-
-<style>
-
-* {
-    box-sizing: border-box;
-}
-
-body {
-    margin: 0;
-    font-family: Arial, sans-serif;
-    background: #eef2f7;
-    color: #1e293b;
-}
-
-.header {
-    background: #172554;
-    color: white;
-    padding: 30px;
-    text-align: center;
-}
-
-.header h1 {
-    margin: 0;
-    font-size: 32px;
-}
-
-.header p {
-    margin-top: 10px;
-}
-
-.container {
-    width: 92%;
-    max-width: 1250px;
-    margin: 25px auto;
-}
-
-.card {
-    background: white;
-    padding: 25px;
-    margin-bottom: 22px;
-    border-radius: 15px;
-    box-shadow: 0 5px 18px rgba(0,0,0,0.08);
-}
-
-.card h2 {
-    color: #172554;
-    margin-top: 0;
-}
-
-.upload-box {
-    border: 2px dashed #64748b;
-    padding: 30px;
-    text-align: center;
-    border-radius: 12px;
-}
-
-input[type=file] {
-    margin: 15px;
-}
-
-.button-group {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-}
-
-button {
-    background: #2563eb;
-    color: white;
-    border: none;
-    padding: 12px 20px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 14px;
-}
-
-button:hover {
-    background: #1d4ed8;
-}
-
-.reset {
-    background: #dc2626;
-}
-
-.reset:hover {
-    background: #b91c1c;
-}
-
-.image-container {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 25px;
-}
-
-.image-box {
-    text-align: center;
-}
-
-.image-box img {
-    width: 100%;
-    max-height: 450px;
-    object-fit: contain;
-    border: 2px solid #cbd5e1;
-    border-radius: 12px;
-    background: #f8fafc;
-}
-
-.matrix-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-    gap: 20px;
-}
-
-.matrix-card {
-    background: #f8fafc;
-    padding: 18px;
-    border-radius: 12px;
-    border: 1px solid #dbeafe;
-}
-
-.matrix-card h3 {
-    color: #1e3a8a;
-}
-
-table {
-    border-collapse: collapse;
-    margin: auto;
-}
-
-td {
-    border: 1px solid #64748b;
-    padding: 10px 15px;
-    text-align: center;
-    background: white;
-    font-weight: bold;
-}
-
-pre {
-    background: #111827;
-    color: #22c55e;
-    padding: 18px;
-    border-radius: 10px;
-    overflow-x: auto;
-}
-
-.status {
-    margin-top: 15px;
-    padding: 12px;
-    background: #dcfce7;
-    color: #166534;
-    border-radius: 8px;
-}
-
-@media(max-width: 750px) {
-
-    .image-container {
-        grid-template-columns: 1fr;
-    }
-
-}
-
-</style>
-
-</head>
-
-
-<body>
-
-
-<div class="header">
-
-<h1>
-Image Preprocessing Dashboard
-</h1>
-
-<p>
-IVA Assignment | Spatial Domain Methods | Gradient Operators
-</p>
-
-</div>
-
-
-<div class="container">
-
-
-<!-- =====================================================
-UPLOAD IMAGE
-===================================================== -->
-
-<div class="card">
-
-<h2>📤 Upload Image</h2>
-
-<div class="upload-box">
-
-<form method="POST"
-      action="/upload"
-      enctype="multipart/form-data">
-
-<input
-    type="file"
-    name="image"
-    accept="image/*"
-    required
->
-
-<br>
-
-<button type="submit">
-Upload Image
-</button>
-
-</form>
-
-{% if uploaded %}
-
-<div class="status">
-Image uploaded successfully!
-</div>
-
-{% endif %}
-
-</div>
-
-</div>
-
-
-{% if uploaded %}
-
-
-<!-- =====================================================
-IMAGE DISPLAY
-===================================================== -->
-
-<div class="card">
-
-<h2>🖼️ Image Comparison</h2>
-
-<div class="image-container">
-
-
-<div class="image-box">
-
-<h3>Original Image</h3>
-
-<img src="{{ original_url }}">
-
-</div>
-
-
-<div class="image-box">
-
-<h3>Processed Image</h3>
-
-{% if processed_url %}
-
-<img src="{{ processed_url }}">
-
-{% else %}
-
-<p>
-Choose an image processing technique.
-</p>
-
-{% endif %}
-
-</div>
-
-
-</div>
-
-</div>
-
-
-<!-- =====================================================
-SPATIAL DOMAIN
-===================================================== -->
-
-<div class="card">
-
-<h2>🔹 Spatial Domain Methods</h2>
-
-<p>
-These filters operate directly on the pixels of the image
-to reduce noise.
-</p>
-
-<div class="button-group">
-
-
-<form method="POST" action="/process">
-
-<input type="hidden"
-       name="operation"
-       value="mean">
-
-<button>
-Mean Filter
-</button>
-
-</form>
-
-
-<form method="POST" action="/process">
-
-<input type="hidden"
-       name="operation"
-       value="median">
-
-<button>
-Median Filter
-</button>
-
-</form>
-
-
-<form method="POST" action="/process">
-
-<input type="hidden"
-       name="operation"
-       value="gaussian">
-
-<button>
-Gaussian Filter
-</button>
-
-</form>
-
-
-</div>
-
-</div>
-
-
-<!-- =====================================================
-GRADIENT OPERATORS
-===================================================== -->
-
-<div class="card">
-
-<h2>📐 Gradient Operators</h2>
-
-<div class="button-group">
-
-
-<form method="POST" action="/process">
-
-<input type="hidden"
-       name="operation"
-       value="laplacian">
-
-<button>
-Laplacian
-</button>
-
-</form>
-
-
-<form method="POST" action="/process">
-
-<input type="hidden"
-       name="operation"
-       value="sobel">
-
-<button>
-Sobel
-</button>
-
-</form>
-
-
-<form method="POST" action="/process">
-
-<input type="hidden"
-       name="operation"
-       value="prewitt">
-
-<button>
-Prewitt
-</button>
-
-</form>
-
-
-</div>
-
-</div>
-
-
-<!-- =====================================================
-CANNY
-===================================================== -->
-
-<div class="card">
-
-<h2>✨ Edge Detection</h2>
-
-<form method="POST" action="/process">
-
-<input type="hidden"
-       name="operation"
-       value="canny">
-
-<button>
-Canny Edge Detection
-</button>
-
-</form>
-
-</div>
-
-
-<!-- =====================================================
-GRAYSCALE
-===================================================== -->
-
-<div class="card">
-
-<h2>⚫ Basic Processing</h2>
-
-<form method="POST" action="/process">
-
-<input type="hidden"
-       name="operation"
-       value="grayscale">
-
-<button>
-Grayscale
-</button>
-
-</form>
-
-</div>
-
-
-<!-- =====================================================
-OPERATOR MATRICES
-===================================================== -->
-
-<div class="card">
-
-<h2>🧮 Operator / Kernel Matrices</h2>
-
-<div class="matrix-container">
-
-
-{% for name, matrix in kernels.items() %}
-
-<div class="matrix-card">
-
-<h3>
-{{ name }}
-</h3>
-
-<table>
-
-{% for row in matrix %}
-
-<tr>
-
-{% for value in row %}
-
-<td>
-{{ value }}
-</td>
-
-{% endfor %}
-
-</tr>
-
-{% endfor %}
-
-</table>
-
-</div>
-
-{% endfor %}
-
-
-</div>
-
-</div>
-
-
-<!-- =====================================================
-PIXEL MATRIX
-===================================================== -->
-
-<div class="card">
-
-<h2>🔢 Image Pixel Matrix</h2>
-
-<p>
-Sample 10 × 10 grayscale pixel matrix:
-</p>
-
-<pre>{{ matrix }}</pre>
-
-</div>
-
-
-<!-- =====================================================
-CURRENT OPERATION
-===================================================== -->
-
-<div class="card">
-
-<h2>✅ Current Processing</h2>
-
-<h3>
-{{ operation }}
-</h3>
-
-</div>
-
-
-{% endif %}
-
-
-</div>
-
-</body>
-
-</html>
-
-"""
+if "operation" not in st.session_state:
+    st.session_state.operation = "No operation selected"
 
 
 # ============================================================
-# CONVERT IMAGE TO BASE64
+# RESET FUNCTION
 # ============================================================
 
-def image_to_base64(image):
+def reset_app():
 
-    success, buffer = cv2.imencode(".jpg", image)
-
-    if not success:
-        return ""
-
-    encoded = base64.b64encode(buffer).decode("utf-8")
-
-    return "data:image/jpeg;base64," + encoded
+    st.session_state.image = None
+    st.session_state.processed = None
+    st.session_state.operation = "No operation selected"
 
 
 # ============================================================
-# PIXEL MATRIX
+# IMAGE PROCESSING FUNCTIONS
 # ============================================================
 
-def get_pixel_matrix(image):
+def process_image(image, operation):
 
     gray = cv2.cvtColor(
         image,
-        cv2.COLOR_BGR2GRAY
-    )
-
-    small = cv2.resize(
-        gray,
-        (10, 10)
-    )
-
-    return str(small)
-
-
-# ============================================================
-# HOME PAGE
-# ============================================================
-
-@app.route("/")
-def home():
-
-    global current_image
-    global current_processed
-    global current_operation
-
-    if current_image is None:
-
-        return render_template_string(
-            HTML,
-            uploaded=False,
-            original_url=None,
-            processed_url=None,
-            matrix=None,
-            operation=None,
-            kernels=KERNELS
-        )
-
-    matrix = get_pixel_matrix(
-        current_image
-    )
-
-    return render_template_string(
-        HTML,
-
-        uploaded=True,
-
-        original_url=image_to_base64(
-            current_image
-        ),
-
-        processed_url=(
-            image_to_base64(current_processed)
-            if current_processed is not None
-            else None
-        ),
-
-        matrix=matrix,
-
-        operation=current_operation,
-
-        kernels=KERNELS
-    )
-
-
-# ============================================================
-# UPLOAD
-# ============================================================
-
-@app.route("/upload", methods=["POST"])
-def upload():
-
-    global current_image
-    global current_processed
-    global current_operation
-
-    file = request.files.get("image")
-
-    if file is not None:
-
-        data = file.read()
-
-        array = np.frombuffer(
-            data,
-            dtype=np.uint8
-        )
-
-        image = cv2.imdecode(
-            array,
-            cv2.IMREAD_COLOR
-        )
-
-        if image is not None:
-
-            current_image = image
-
-            current_processed = None
-
-            current_operation = \
-                "No operation selected"
-
-    return redirect(
-        url_for("home")
-    )
-
-
-# ============================================================
-# PROCESS IMAGE
-# ============================================================
-
-@app.route("/process", methods=["POST"])
-def process():
-
-    global current_image
-    global current_processed
-    global current_operation
-
-    if current_image is None:
-
-        return redirect(
-            url_for("home")
-        )
-
-    operation = request.form.get(
-        "operation"
-    )
-
-    gray = cv2.cvtColor(
-        current_image,
         cv2.COLOR_BGR2GRAY
     )
 
@@ -762,72 +126,68 @@ def process():
     # MEAN FILTER
     # ========================================================
 
-    if operation == "mean":
+    if operation == "Mean Filter":
 
-        current_processed = cv2.blur(
+        processed = cv2.blur(
             gray,
             (5, 5)
         )
 
-        current_operation = \
-            "Mean Filter"
+        name = "Mean Filter"
 
 
     # ========================================================
     # MEDIAN FILTER
     # ========================================================
 
-    elif operation == "median":
+    elif operation == "Median Filter":
 
-        current_processed = cv2.medianBlur(
+        processed = cv2.medianBlur(
             gray,
             5
         )
 
-        current_operation = \
-            "Median Filter"
+        name = "Median Filter"
 
 
     # ========================================================
     # GAUSSIAN FILTER
     # ========================================================
 
-    elif operation == "gaussian":
+    elif operation == "Gaussian Filter":
 
-        current_processed = cv2.GaussianBlur(
+        processed = cv2.GaussianBlur(
             gray,
             (5, 5),
             0
         )
 
-        current_operation = \
-            "Gaussian Filter"
+        name = "Gaussian Filter"
 
 
     # ========================================================
     # LAPLACIAN
     # ========================================================
 
-    elif operation == "laplacian":
+    elif operation == "Laplacian":
 
         result = cv2.Laplacian(
             gray,
             cv2.CV_64F
         )
 
-        current_processed = cv2.convertScaleAbs(
+        processed = cv2.convertScaleAbs(
             result
         )
 
-        current_operation = \
-            "Laplacian Gradient Operator"
+        name = "Laplacian Gradient Operator"
 
 
     # ========================================================
     # SOBEL
     # ========================================================
 
-    elif operation == "sobel":
+    elif operation == "Sobel":
 
         sobel_x = cv2.Sobel(
             gray,
@@ -850,19 +210,18 @@ def process():
             np.float32(sobel_y)
         )
 
-        current_processed = cv2.convertScaleAbs(
+        processed = cv2.convertScaleAbs(
             magnitude
         )
 
-        current_operation = \
-            "Sobel Gradient Operator"
+        name = "Sobel Gradient Operator"
 
 
     # ========================================================
     # PREWITT
     # ========================================================
 
-    elif operation == "prewitt":
+    elif operation == "Prewitt":
 
         kernel_x = np.array(
             [
@@ -884,78 +243,605 @@ def process():
 
         prewitt_x = cv2.filter2D(
             gray,
-            -1,
+            cv2.CV_32F,
             kernel_x
         )
 
         prewitt_y = cv2.filter2D(
             gray,
-            -1,
+            cv2.CV_32F,
             kernel_y
         )
 
-        current_processed = cv2.addWeighted(
+        magnitude = cv2.magnitude(
             prewitt_x,
-            0.5,
-            prewitt_y,
-            0.5,
-            0
+            prewitt_y
         )
 
-        current_operation = \
-            "Prewitt Gradient Operator"
+        processed = cv2.convertScaleAbs(
+            magnitude
+        )
+
+        name = "Prewitt Gradient Operator"
 
 
     # ========================================================
-    # CANNY
+    # CANNY EDGE DETECTION
     # ========================================================
 
-    elif operation == "canny":
+    elif operation == "Canny Edge Detection":
 
-        current_processed = cv2.Canny(
+        processed = cv2.Canny(
             gray,
             100,
             200
         )
 
-        current_operation = \
-            "Canny Edge Detection"
+        name = "Canny Edge Detection"
 
 
     # ========================================================
     # GRAYSCALE
     # ========================================================
 
-    elif operation == "grayscale":
+    elif operation == "Grayscale":
 
-        current_processed = gray
+        processed = gray
 
-        current_operation = \
-            "Grayscale Conversion"
+        name = "Grayscale Conversion"
 
 
-    return redirect(
-        url_for("home")
+    else:
+
+        processed = None
+        name = "No operation selected"
+
+
+    return processed, name
+
+
+# ============================================================
+# UPLOAD IMAGE
+# ============================================================
+
+st.header("📤 Upload Image")
+
+uploaded_file = st.file_uploader(
+    "Choose an image",
+    type=["jpg", "jpeg", "png"],
+    help="Maximum file size: 50 MB"
+)
+
+
+# ============================================================
+# HANDLE UPLOADED IMAGE
+# ============================================================
+
+if uploaded_file is not None:
+
+    if uploaded_file.size > 50 * 1024 * 1024:
+
+        st.error(
+            "❌ File is larger than 50 MB."
+        )
+
+    else:
+
+        file_bytes = np.asarray(
+            bytearray(
+                uploaded_file.getvalue()
+            ),
+            dtype=np.uint8
+        )
+
+        image = cv2.imdecode(
+            file_bytes,
+            cv2.IMREAD_COLOR
+        )
+
+        if image is not None:
+
+            # Store image
+            st.session_state.image = image
+
+            # Reset processing when a new image is uploaded
+            st.session_state.processed = None
+            st.session_state.operation = "No operation selected"
+
+            st.success(
+                "Image uploaded successfully! ✅"
+            )
+
+
+# ============================================================
+# IF IMAGE EXISTS
+# ============================================================
+
+if st.session_state.image is not None:
+
+    image = st.session_state.image
+
+
+    # ========================================================
+    # IMAGE COMPARISON
+    # ========================================================
+
+    st.divider()
+
+    st.header("🖼️ Image Comparison")
+
+    col1, col2 = st.columns(2)
+
+
+    # ========================================================
+    # ORIGINAL IMAGE
+    # ========================================================
+
+    with col1:
+
+        st.subheader("Original Image")
+
+        original_rgb = cv2.cvtColor(
+            image,
+            cv2.COLOR_BGR2RGB
+        )
+
+        st.image(
+            original_rgb,
+            use_container_width=True
+        )
+
+
+    # ========================================================
+    # PROCESSED IMAGE
+    # ========================================================
+
+    with col2:
+
+        st.subheader("Processed Image")
+
+        if st.session_state.processed is not None:
+
+            st.image(
+                st.session_state.processed,
+                use_container_width=True
+            )
+
+            st.success(
+                "Current Processing: "
+                + st.session_state.operation
+            )
+
+        else:
+
+            st.info(
+                "Choose an image processing technique below."
+            )
+
+
+    # ========================================================
+    # SPATIAL DOMAIN METHODS
+    # ========================================================
+
+    st.divider()
+
+    st.header("🔹 Spatial Domain Methods")
+
+    st.write(
+        """
+        Spatial domain methods operate directly on image pixels.
+        They are commonly used for noise suppression and image
+        enhancement.
+        """
+    )
+
+    col1, col2, col3 = st.columns(3)
+
+
+    with col1:
+
+        if st.button(
+            "Mean Filter",
+            use_container_width=True
+        ):
+
+            processed, name = process_image(
+                image,
+                "Mean Filter"
+            )
+
+            st.session_state.processed = processed
+            st.session_state.operation = name
+
+            st.rerun()
+
+
+    with col2:
+
+        if st.button(
+            "Median Filter",
+            use_container_width=True
+        ):
+
+            processed, name = process_image(
+                image,
+                "Median Filter"
+            )
+
+            st.session_state.processed = processed
+            st.session_state.operation = name
+
+            st.rerun()
+
+
+    with col3:
+
+        if st.button(
+            "Gaussian Filter",
+            use_container_width=True
+        ):
+
+            processed, name = process_image(
+                image,
+                "Gaussian Filter"
+            )
+
+            st.session_state.processed = processed
+            st.session_state.operation = name
+
+            st.rerun()
+
+
+    # ========================================================
+    # GRADIENT OPERATORS
+    # ========================================================
+
+    st.divider()
+
+    st.header("📐 Gradient Operators")
+
+    st.write(
+        """
+        Gradient operators detect intensity changes and help
+        identify edges in an image.
+        """
+    )
+
+    col1, col2, col3 = st.columns(3)
+
+
+    with col1:
+
+        if st.button(
+            "Laplacian",
+            use_container_width=True
+        ):
+
+            processed, name = process_image(
+                image,
+                "Laplacian"
+            )
+
+            st.session_state.processed = processed
+            st.session_state.operation = name
+
+            st.rerun()
+
+
+    with col2:
+
+        if st.button(
+            "Sobel",
+            use_container_width=True
+        ):
+
+            processed, name = process_image(
+                image,
+                "Sobel"
+            )
+
+            st.session_state.processed = processed
+            st.session_state.operation = name
+
+            st.rerun()
+
+
+    with col3:
+
+        if st.button(
+            "Prewitt",
+            use_container_width=True
+        ):
+
+            processed, name = process_image(
+                image,
+                "Prewitt"
+            )
+
+            st.session_state.processed = processed
+            st.session_state.operation = name
+
+            st.rerun()
+
+
+    # ========================================================
+    # CANNY EDGE DETECTION
+    # ========================================================
+
+    st.divider()
+
+    st.header("✨ Edge Detection")
+
+    if st.button(
+        "Canny Edge Detection",
+        use_container_width=True
+    ):
+
+        processed, name = process_image(
+            image,
+            "Canny Edge Detection"
+        )
+
+        st.session_state.processed = processed
+        st.session_state.operation = name
+
+        st.rerun()
+
+
+    # ========================================================
+    # BASIC PROCESSING
+    # ========================================================
+
+    st.divider()
+
+    st.header("⚫ Basic Processing")
+
+    if st.button(
+        "Grayscale",
+        use_container_width=True
+    ):
+
+        processed, name = process_image(
+            image,
+            "Grayscale"
+        )
+
+        st.session_state.processed = processed
+        st.session_state.operation = name
+
+        st.rerun()
+
+
+    # ========================================================
+    # CURRENT OPERATION
+    # ========================================================
+
+    st.divider()
+
+    st.header("✅ Current Processing")
+
+    st.info(
+        st.session_state.operation
+    )
+
+
+    # ========================================================
+    # OPERATOR MATRICES
+    # ========================================================
+
+    st.divider()
+
+    st.header("🧮 Operator / Kernel Matrices")
+
+    selected_operation = st.session_state.operation
+
+
+    if selected_operation == "Laplacian Gradient Operator":
+
+        st.subheader("Laplacian Matrix")
+
+        st.table(
+            KERNELS["Laplacian"]
+        )
+
+
+    elif selected_operation == "Sobel Gradient Operator":
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+
+            st.subheader("Sobel X")
+
+            st.table(
+                KERNELS["Sobel X"]
+            )
+
+        with col2:
+
+            st.subheader("Sobel Y")
+
+            st.table(
+                KERNELS["Sobel Y"]
+            )
+
+
+    elif selected_operation == "Prewitt Gradient Operator":
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+
+            st.subheader("Prewitt X")
+
+            st.table(
+                KERNELS["Prewitt X"]
+            )
+
+        with col2:
+
+            st.subheader("Prewitt Y")
+
+            st.table(
+                KERNELS["Prewitt Y"]
+            )
+
+
+    elif selected_operation in KERNELS:
+
+        st.subheader(
+            selected_operation
+        )
+
+        st.table(
+            KERNELS[selected_operation]
+        )
+
+
+    else:
+
+        st.info(
+            "Select Mean, Gaussian, Laplacian, Sobel or Prewitt "
+            "to display its operator matrix."
+        )
+
+
+    # ========================================================
+    # ALL MATRICES
+    # ========================================================
+
+    with st.expander(
+        "📚 View All Operator / Kernel Matrices"
+    ):
+
+        for name, matrix in KERNELS.items():
+
+            st.subheader(name)
+
+            st.table(matrix)
+
+
+    # ========================================================
+    # PIXEL MATRIX
+    # ========================================================
+
+    st.divider()
+
+    st.header("🔢 Image Pixel Matrix")
+
+    st.write(
+        "Sample 10 × 10 grayscale pixel matrix:"
+    )
+
+    gray = cv2.cvtColor(
+        image,
+        cv2.COLOR_BGR2GRAY
+    )
+
+    small = cv2.resize(
+        gray,
+        (10, 10)
+    )
+
+    st.dataframe(
+        small,
+        use_container_width=True
+    )
+
+
+    # ========================================================
+    # IMAGE INFORMATION
+    # ========================================================
+
+    st.divider()
+
+    st.header("📊 Image Information")
+
+    c1, c2, c3 = st.columns(3)
+
+    with c1:
+
+        st.metric(
+            "Width",
+            image.shape[1]
+        )
+
+    with c2:
+
+        st.metric(
+            "Height",
+            image.shape[0]
+        )
+
+    with c3:
+
+        st.metric(
+            "Channels",
+            image.shape[2]
+        )
+
+
+    # ========================================================
+    # DOWNLOAD PROCESSED IMAGE
+    # ========================================================
+
+    if st.session_state.processed is not None:
+
+        st.divider()
+
+        st.header("⬇️ Download Processed Image")
+
+        processed_image = st.session_state.processed
+
+        success, encoded_image = cv2.imencode(
+            ".png",
+            processed_image
+        )
+
+        if success:
+
+            st.download_button(
+                label="⬇️ Download Processed Image",
+                data=encoded_image.tobytes(),
+                file_name="processed_image.png",
+                mime="image/png",
+                use_container_width=True
+            )
+
+
+    # ========================================================
+    # RESET
+    # ========================================================
+
+    st.divider()
+
+    if st.button(
+        "🔄 Reset Application",
+        use_container_width=True
+    ):
+
+        reset_app()
+
+        st.rerun()
+
+
+# ============================================================
+# NO IMAGE
+# ============================================================
+
+else:
+
+    st.info(
+        "👆 Upload an image to start image preprocessing."
     )
 
 
 # ============================================================
-# START APPLICATION
+# FOOTER
 # ============================================================
 
-if __name__ == "__main__":
+st.divider()
 
-    import webbrowser
-    from threading import Timer
-
-    def open_browser():
-        webbrowser.open_new("http://127.0.0.1:5000")
-
-    Timer(1.5, open_browser).start()
-
-    app.run(
-        host="127.0.0.1",
-        port=5000,
-        debug=False,
-        use_reloader=False
-    )
+st.caption(
+    "IVA Assignment | Image Preprocessing using Spatial Domain Methods"
+)
