@@ -1,22 +1,24 @@
- Image Processing
+# 🚀 NEXUS VISION
 
-This project includes image processing techniques to load, manipulate, enhance, and analyze digital images.
-It focuses on operations such as image resizing, filtering, noise reduction, color conversion, edge detection, and image enhancement.
-These techniques help improve image quality and extract meaningful information from images for further analysis or computer vision applications.
+NEXUS VISION is an interactive Computer Vision application built with Python and Streamlit.
 
-live demo link
+## 🌐 Live Demo
 
-https://image-visualization-app-3oeg4xfsa9c4nyxtczl9e2.streamlit.app/
+👉 https://iva-vision-cwga8yenj3dprfonjjgmsp.streamlit.app/
 
-Features
-📷 Image preprocessing
-🎨 Color space conversion
-🔍 Image filtering and enhancement
-✂️ Cropping and resizing
-⚫ Grayscale conversion
-📐 Edge and contour detection
-🎯 Thresholding and segmentation
-🧩 Feature extraction
-📊 Image analysis and visualization
+## ✨ Features
 
-These techniques are useful in real-world applications such as medical imaging, facial recognition, object detection, surveillance, document analysis, and automated visual inspection.
+- 👤 **FaceNet Analysis** – Face similarity using facial embeddings.
+- 😊 **DeepFace Analysis** – Facial emotion detection.
+- 👁️ **Viola-Jones Detection** – Face detection using Haar Cascade.
+- 🎯 **Template Matching** – Image template matching using OpenCV.
+
+## 🛠️ Technologies
+
+Python • Streamlit • OpenCV • DeepFace • FaceNet • TensorFlow • NumPy
+
+## ▶️ Run Locally
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py
